@@ -23,8 +23,8 @@ def _summary(result_df: pd.DataFrame) -> pd.DataFrame:
         {"Показатель": "Предупреждение", "Значение": int((result_df["status"] == "Предупреждение").sum())},
         {"Показатель": "Норма", "Значение": int((result_df["status"] == "Норма").sum())},
         {"Показатель": "Избыточный буфер", "Значение": int((result_df["status"] == "Избыточный буфер").sum())},
-        {"Показатель": "Средний Ibuf", "Значение": result_df["Ibuf"].replace([float("inf"), -float("inf")], pd.NA).dropna().mean()},
-        {"Показатель": "Средний Bopt", "Значение": result_df["Bopt"].mean()},
+        {"Показатель": "Средний индекс обеспеченности буфера", "Значение": result_df["Ibuf"].replace([float("inf"), -float("inf")], pd.NA).dropna().mean()},
+        {"Показатель": "Средний оптимальный буфер", "Значение": result_df["Bopt"].mean()},
     ]
     return pd.DataFrame(rows)
 

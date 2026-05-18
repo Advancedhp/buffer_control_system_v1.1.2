@@ -7,6 +7,26 @@ import plotly.graph_objects as go
 
 from .status_rules import DEFAULT_CRITICAL_THRESHOLD, DEFAULT_NORMAL_THRESHOLD, DEFAULT_SURPLUS_THRESHOLD, STATUS_HEX, STATUS_ORDER
 
+DISPLAY_NAMES = {
+    "Ibuf": "Индекс обеспеченности буфера",
+    "Bopt": "Оптимальный буфер",
+    "Btar": "Целевой буфер",
+    "Bstat": "Статистический буфер",
+    "A": "Доступная позиция",
+    "Pshort": "Вероятность дефицита при оптимальном буфере",
+    "Pshort_current": "Текущая вероятность дефицита",
+    "reorder_point": "Точка заказа",
+    "sigma_LT": "Неопределённость спроса за срок пополнения",
+    "z": "Адаптивный коэффициент надёжности",
+    "Kload": "Коэффициент загрузки ROP",
+    "holding_cost": "Затраты на хранение",
+    "expected_stop_loss": "Ожидаемые потери от простоя",
+}
+
+
+def label(metric: str) -> str:
+    return DISPLAY_NAMES.get(metric, metric)
+
 
 def _clean_numeric(data: pd.DataFrame, cols: list[str]) -> pd.DataFrame:
     result = data.copy()
@@ -68,7 +88,7 @@ def ibuf_bar(
                 "Ibuf: %{y:.3f}<br>"
                 "A: %{customdata[2]:.2f}<br>"
                 "Bopt: %{customdata[3]:.2f}<br>"
-                "Pshort current: %{customdata[4]:.2%}<extra></extra>"
+                "Текущая вероятность дефицита: %{customdata[4]:.2%}<extra></extra>"
             ) if {"item_name", "status", "A", "Bopt", "Pshort_current"}.issubset(part.columns) else None,
         ))
     fig.add_hline(y=critical_threshold, line_dash="dash", line_color="rgba(248,113,113,0.8)")
@@ -78,7 +98,7 @@ def ibuf_bar(
     fig.update_layout(
         title="Индекс обеспеченности буфера по позициям",
         xaxis_title="Позиция",
-        yaxis_title="Ibuf",
+        yaxis_title="Индекс обеспеченности буфера",
         barmode="group",
         showlegend=True,
         height=520,
@@ -89,17 +109,21 @@ def ibuf_bar(
 
 
 def buffer_comparison(df: pd.DataFrame):
-    data = _clean_numeric(df, ["Bopt", "A", "Btar"]).sort_values("Bopt", ascending=False).head(15)
+    data = _clean_numeric(df, ["Bopt", "A", "Btar"]).sort_values("Bopt", ascending=False)
     fig = go.Figure()
-    fig.add_trace(go.Bar(name="A — доступная позиция", x=data["item_id"], y=data["A"]))
-    fig.add_trace(go.Bar(name="Bopt — оптимальный буфер", x=data["item_id"], y=data["Bopt"]))
-    fig.add_trace(go.Bar(name="Btar — целевой буфер", x=data["item_id"], y=data["Btar"]))
+    fig.add_trace(go.Bar(name="Доступная позиция", x=data["item_id"], y=data["A"]))
+    fig.add_trace(go.Bar(name="Оптимальный буфер", x=data["item_id"], y=data["Bopt"]))
+    fig.add_trace(go.Bar(name="Целевой буфер", x=data["item_id"], y=data["Btar"]))
+    height = max(540, min(900, 380 + int(len(data)) * 10))
     fig.update_layout(
         barmode="group",
         title="Сравнение доступной позиции, целевого и оптимального буфера",
         xaxis_title="Позиция",
-        yaxis_title="Единицы",
-        height=500,
+        yaxis_title="Единицы запаса",
+        height=height,
+        legend_title="Показатель",
+        xaxis=dict(tickangle=-45, automargin=True),
+        margin=dict(b=130),
     )
     return fig
 
@@ -116,7 +140,7 @@ def pshort_bar(df: pd.DataFrame):
         customdata=data[["item_name", "status"]] if {"item_name", "status"}.issubset(data.columns) else None,
         hovertemplate="Позиция: %{x}<br>Наименование: %{customdata[0]}<br>Статус: %{customdata[1]}<br>Риск: %{y:.2f}%<extra></extra>" if {"item_name", "status"}.issubset(data.columns) else None,
     ))
-    fig.update_layout(title="Текущая вероятность дефицита по позициям", xaxis_title="Позиция", yaxis_title="Pshort, %", height=430)
+    fig.update_layout(title="Текущая вероятность дефицита по позициям", xaxis_title="Позиция", yaxis_title="Вероятность дефицита, %", height=430)
     return fig
 
 
@@ -128,7 +152,7 @@ def metric_bar(df: pd.DataFrame, metric: str = "Bopt", title: str | None = None,
     data = _clean_numeric(df, [metric]).copy()
     if data.empty:
         fig = go.Figure()
-        fig.update_layout(title=title or f"{metric} по позициям", height=420)
+        fig.update_layout(title=title or f"{label(metric)} по позициям", height=420)
         return fig
     data["abs_metric"] = data[metric].abs()
     data = data.sort_values("abs_metric", ascending=False).head(top_n)
@@ -143,13 +167,13 @@ def metric_bar(df: pd.DataFrame, metric: str = "Bopt", title: str | None = None,
             "Позиция: %{x}<br>"
             "Наименование: %{customdata[0]}<br>"
             "Статус: %{customdata[1]}<br>"
-            f"{metric}: " + "%{y:.3f}<extra></extra>"
+            f"{label(metric)}: " + "%{y:.3f}<extra></extra>"
         ) if {"item_name", "status"}.issubset(data.columns) else None,
     ))
     fig.update_layout(
-        title=title or f"{metric} по позициям",
+        title=title or f"{label(metric)} по позициям",
         xaxis_title="Позиция",
-        yaxis_title=metric,
+        yaxis_title=label(metric),
         height=420,
         showlegend=False,
     )
@@ -168,9 +192,9 @@ def scenario_delta_chart(before: pd.DataFrame, after: pd.DataFrame, metric: str 
     fig = go.Figure()
     fig.add_trace(go.Bar(x=data["item_id"], y=data[f"delta_{metric}"], marker_color="#60a5fa"))
     fig.update_layout(
-        title=title or f"Изменение {metric} после сценарного воздействия",
+        title=title or f"Изменение показателя: {label(metric)}",
         xaxis_title="Позиция",
-        yaxis_title=f"Δ{metric}",
+        yaxis_title=f"Изменение: {label(metric)}",
         height=480,
     )
     return fig
